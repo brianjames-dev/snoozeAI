@@ -1,0 +1,44 @@
+# --- Python ---
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+.env
+backend/.env
+.env.*
+
+# --- macOS ---
+.DS_Store
+
+# --- Editors/IDEs ---
+.vscode/
+.idea/
+.python-version
+
+# --- Xcode / Swift ---
+DerivedData/
+build/
+xcuserdata/
+*.xcuserdatad
+*.xcuserstate
+*.xccheckout
+*.xcworkspace
+# SwiftPM
+.build/
+.swiftpm/
+Package.resolved
+
+# --- iOS secrets ---
+**/GoogleService-Info.plist
+
+# --- Firebase/Service Accounts ---
+**/service-account.json
+
+# --- Misc test fixtures ---
+payload.apns
