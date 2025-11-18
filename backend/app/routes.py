@@ -1,22 +1,27 @@
+import logging
 from fastapi import APIRouter, HTTPException, Query
 from .schemas import TextIn, SummaryOut, ClassifyOut, StoreIn, StoreOut, ItemsOut
 from .ai import summarize as ai_summarize, classify as ai_classify
 from .db import store_snoozed, fetch_items
 
 router = APIRouter()
+logger = logging.getLogger("ai-notif-agent")
 
 @router.get("/health")
 def health():
+    logger.info("health.check")
     return {"ok": True}
 
 @router.post("/summarize", response_model=SummaryOut)
 async def summarize(payload: TextIn):
     summary = await ai_summarize(payload.text, payload.max_tokens or 80)
+    logger.info("summarize.request len=%s", len(payload.text))
     return {"summary": summary}
 
 @router.post("/classify", response_model=ClassifyOut)
 async def classify(payload: TextIn):
     result = await ai_classify(payload.text, hints=payload.hints)
+    logger.info("classify.request hints=%s", bool(payload.hints))
     return result
 
 @router.post("/store", response_model=StoreOut)
@@ -25,6 +30,7 @@ def store(payload: StoreIn):
         doc_id = store_snoozed(payload)
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Failed to persist snooze") from exc
+    logger.info("store.item id=%s", doc_id)
     return {"ok": True, "id": doc_id}
 
 
@@ -46,4 +52,5 @@ def items(limit: int = Query(50, ge=1, le=100)):
                 "snooze_until": record.get("snoozeUntil"),
             }
         )
+    logger.info("items.list count=%s", len(normalized))
     return {"items": normalized}
