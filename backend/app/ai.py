@@ -4,7 +4,7 @@ import json
 import os
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Optional
+from typing import List, Optional
 
 import httpx
 
@@ -49,7 +49,7 @@ def summarize_offline(text: str, max_tokens: int = 60) -> str:
     return prefix + trimmed
 
 
-def classify_offline(text: str) -> dict:
+def classify_offline(text: str, hints: Optional[List[str]] = None) -> dict:
     lowered = text.lower()
     urgency = 0.25
     urgent_terms = ["urgent", "asap", "now", "minutes", "soon", "today", "immediately"]
@@ -57,6 +57,11 @@ def classify_offline(text: str) -> dict:
         urgency = 0.8
     if len(text) < 80:
         urgency = max(urgency, 0.55)
+    if hints:
+        for hint in hints:
+            if hint and hint.strip().lower() in lowered:
+                urgency = max(urgency, 0.9)
+                break
     label = "urgent" if urgency >= 0.6 else "normal"
     return {"urgency": round(urgency, 2), "label": label}
 
@@ -101,10 +106,10 @@ async def summarize(text: str, max_tokens: int = 60, config: Optional[AIConfig] 
     return summarize_offline(text, bounded_tokens)
 
 
-async def classify(text: str, config: Optional[AIConfig] = None) -> dict:
+async def classify(text: str, hints: Optional[List[str]] = None, config: Optional[AIConfig] = None) -> dict:
     cfg = _resolve_config(config)
     if not _can_use_openai(cfg):
-        return classify_offline(text)
+        return classify_offline(text, hints=hints)
 
     messages = [
         {
@@ -114,7 +119,15 @@ async def classify(text: str, config: Optional[AIConfig] = None) -> dict:
                 '{"urgency": 0.75, "label": "urgent"} where urgency in [0,1].'
             ),
         },
-        {"role": "user", "content": text},
+        {
+            "role": "user",
+            "content": text
+            + (
+                f"\nPriority hints: {', '.join(hints)}"
+                if hints
+                else ""
+            ),
+        },
     ]
     payload = {
         "model": cfg.openai_model,
@@ -139,4 +152,4 @@ async def classify(text: str, config: Optional[AIConfig] = None) -> dict:
             return {"urgency": round(max(0.0, min(1.0, urgency)), 2), "label": label}
     except Exception:
         pass
-    return classify_offline(text)
+    return classify_offline(text, hints=hints)

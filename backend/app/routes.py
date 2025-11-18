@@ -16,7 +16,7 @@ async def summarize(payload: TextIn):
 
 @router.post("/classify", response_model=ClassifyOut)
 async def classify(payload: TextIn):
-    result = await ai_classify(payload.text)
+    result = await ai_classify(payload.text, hints=payload.hints)
     return result
 
 @router.post("/store", response_model=StoreOut)

@@ -11,6 +11,6 @@ async def ai_summarize(text: str, max_tokens: int = 80) -> str:
     return await summarize(text, max_tokens=max_tokens)
 
 
-async def ai_classify(text: str) -> float:
-    result = await classify(text)
+async def ai_classify(text: str, hints=None) -> float:
+    result = await classify(text, hints=hints)
     return result.get("urgency", 0.0)

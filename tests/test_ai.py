@@ -17,3 +17,11 @@ def test_classify_offline_keywords_raise_score():
     result = asyncio.run(classify(payload, config=AIConfig(use_openai=False)))
     assert result["label"] == "urgent"
     assert 0.6 <= result["urgency"] <= 1.0
+
+
+def test_classify_hints_increase_score():
+    payload = "Weekly update from Product team"
+    result = asyncio.run(
+        classify(payload, hints=["product team"], config=AIConfig(use_openai=False))
+    )
+    assert result["label"] == "urgent"

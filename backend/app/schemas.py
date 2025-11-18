@@ -7,6 +7,7 @@ from datetime import datetime
 class TextIn(BaseModel):
     text: str
     max_tokens: Optional[int] = 80
+    hints: Optional[List[str]] = None
 
 class SummaryOut(BaseModel):
     summary: str

@@ -132,8 +132,11 @@ final class SnoozeService {
         var req = URLRequest(url: API.base.appendingPathComponent("/classify"))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        struct ClassifyIn: Encodable { let text: String }
-        req.httpBody = try JSONEncoder().encode(ClassifyIn(text: text))
+        struct ClassifyIn: Encodable {
+            let text: String
+            let hints: [String]?
+        }
+        req.httpBody = try JSONEncoder().encode(ClassifyIn(text: text, hints: priorityHints()))
 
         let (data, _) = try await withRetry {
             try await URLSession.shared.data(for: req)
@@ -162,5 +165,15 @@ final class SnoozeService {
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: triggerInterval, repeats: false)
         let request = UNNotificationRequest(identifier: item.id, content: content, trigger: trigger)
         UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
+    }
+
+    private func priorityHints() -> [String]? {
+        let raw = UserDefaults.standard.string(forKey: "prioritySources") ?? ""
+        let delimiters = CharacterSet(charactersIn: ",\n")
+        let tokens = raw
+            .components(separatedBy: delimiters)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+        return tokens.isEmpty ? nil : tokens
     }
 }
