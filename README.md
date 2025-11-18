@@ -17,7 +17,7 @@ Monorepo for **iOS (SwiftUI)** client + **FastAPI** backend. This README shows h
 /backend  
  app/ (FastAPI: main.py, routes/)  
  requirements.txt  
- .env.sample  
+ .env.example  
 /ios (SwiftUI app +, later, Notification Service Extension)
 
 ---
@@ -31,19 +31,15 @@ Monorepo for **iOS (SwiftUI)** client + **FastAPI** backend. This README shows h
    pip install -r requirements.txt
 
 2. Configure environment (copy and edit):
-   cp .env.sample .env
+   cp backend/.env.example backend/.env
 
-   in .env, set:
+   in backend/.env, set:
 
+   USE_OPENAI=false            # flip true with a valid key
    OPENAI_API_KEY=sk-...
-
+   OPENAI_MODEL=gpt-4o-mini
    GOOGLE_APPLICATION_CREDENTIALS=/ABS/PATH/service-account.json
-
-   FIRESTORE_PROJECT_ID=your-gcp-project
-
-   ENV=dev
-
-   FEATURE_USE_AI=false # set true once real prompts are wired
+   GCP_PROJECT_ID=your-gcp-project
 
 3. Start the API:
    uvicorn app.main:app --reload --port 8000

@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from .schemas import TextIn, SummaryOut, ClassifyOut, StoreIn, StoreOut
-from .services import ai_summarize, ai_classify
+from .ai import summarize as ai_summarize, classify as ai_classify
 from .db import store_snoozed
 
 router = APIRouter()
@@ -16,8 +16,8 @@ async def summarize(payload: TextIn):
 
 @router.post("/classify", response_model=ClassifyOut)
 async def classify(payload: TextIn):
-    urgency = await ai_classify(payload.text)
-    return {"urgency": urgency, "label": "urgent" if urgency > 0.6 else "normal"}
+    result = await ai_classify(payload.text)
+    return result
 
 @router.post("/store", response_model=StoreOut)
 def store(payload: StoreIn):
