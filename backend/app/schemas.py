@@ -1,7 +1,7 @@
 
 ## `backend/app/schemas.py`
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from typing import Optional, List
 from datetime import datetime
 
 class TextIn(BaseModel):
@@ -16,12 +16,29 @@ class ClassifyOut(BaseModel):
     label: str
 
 class StoreIn(BaseModel):
-    userId: str
+    model_config = ConfigDict(populate_by_name=True)
+    id: str
     title: str
     body: str
     summary: str
-    urgency: float
-    snoozeUntil: datetime
+    urgency: Optional[float] = None
+    snooze_until: datetime = Field(
+        ...,
+        validation_alias=AliasChoices("snoozeUntil", "snooze_until"),
+        serialization_alias="snoozeUntil",
+    )
 
 class StoreOut(BaseModel):
+    ok: bool
     id: str
+
+class SnoozedItemOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    id: str
+    title: str
+    summary: str
+    urgency: Optional[float] = None
+    snooze_until: datetime = Field(..., serialization_alias="snoozeUntil")
+
+class ItemsOut(BaseModel):
+    items: List[SnoozedItemOut]
