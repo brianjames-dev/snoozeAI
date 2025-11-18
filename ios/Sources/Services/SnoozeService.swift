@@ -20,9 +20,18 @@ struct ItemsResponse: Decodable {
 struct RemoteSnoozedItem: Decodable {
     let id: String
     let title: String
+    let body: String
     let summary: String
     let urgency: Double
     let snoozeUntil: Date
+}
+
+struct UpdatePayload: Encodable {
+    let title: String
+    let body: String
+    let summary: String
+    let urgency: Double
+    let snoozeUntil: String
 }
 
 // ---- Retry helper ----
@@ -66,7 +75,12 @@ final class SnoozeService {
         async let urgencyTask = fetchUrgency(for: body)
 
         let summary = try await summaryTask
-        let urgency = providedUrgency ?? (try await urgencyTask)
+        let urgency: Double
+        if let providedUrgency {
+            urgency = providedUrgency
+        } else {
+            urgency = try await urgencyTask
+        }
         let identifier = UUID().uuidString
         let payload = StorePayload(
             id: identifier,
@@ -90,6 +104,57 @@ final class SnoozeService {
         return item
     }
 
+    func updateSnooze(
+        itemID: String,
+        title: String,
+        body: String,
+        snoozeUntil: Date
+    ) async throws -> SnoozedItem {
+        async let summaryTask = fetchSummary(for: body)
+        async let urgencyTask = fetchUrgency(for: body)
+
+        let summary = try await summaryTask
+        let urgency = try await urgencyTask
+        let payload = UpdatePayload(
+            title: title,
+            body: body,
+            summary: summary,
+            urgency: urgency,
+            snoozeUntil: isoFormatter.string(from: snoozeUntil)
+        )
+
+        var req = URLRequest(url: API.base.appendingPathComponent("/items/\(itemID)"))
+        req.httpMethod = "PATCH"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(payload)
+
+        _ = try await withRetry {
+            try await URLSession.shared.data(for: req)
+        }
+
+        let updated = SnoozedItem(
+            id: itemID,
+            title: title,
+            body: body,
+            summary: summary,
+            urgency: urgency,
+            snoozeUntil: snoozeUntil
+        )
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [itemID])
+        scheduleLocalNotification(for: updated)
+        return updated
+    }
+
+    func deleteSnooze(id: String) async throws {
+        var req = URLRequest(url: API.base.appendingPathComponent("/items/\(id)"))
+        req.httpMethod = "DELETE"
+
+        _ = try await withRetry {
+            try await URLSession.shared.data(for: req)
+        }
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
+    }
+
     func fetchItems(limit: Int = 50) async throws -> [SnoozedItem] {
         let url = API.base.appendingPathComponent("/items")
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
@@ -107,7 +172,7 @@ final class SnoozeService {
             SnoozedItem(
                 id: $0.id,
                 title: $0.title,
-                body: $0.summary,
+                body: $0.body,
                 summary: $0.summary,
                 urgency: $0.urgency,
                 snoozeUntil: $0.snoozeUntil

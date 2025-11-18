@@ -25,19 +25,30 @@ struct NewSnoozeSheet: View {
     var onCreate: (SnoozedItem) -> Void
 
     @State private var title: String = ""
-    @State private var body: String = ""
+    @State private var messageBody: String = ""
     @State private var selectedOption: DurationOption
     @State private var customDate: Date
     @State private var isSaving = false
     @State private var errorMessage: String?
+    @AppStorage("useResurfaceTime") private var useResurfaceTime = false
+    @AppStorage("defaultResurfaceTime") private var defaultResurfaceTimeValue: Double = SettingsView.defaultResurfaceTime.timeIntervalSinceReferenceDate
 
     init(onCreate: @escaping (SnoozedItem) -> Void) {
         self.onCreate = onCreate
-        let storedMinutes = UserDefaults.standard.object(forKey: "defaultSnoozeMinutes") as? Int ?? 60
-        let option = NewSnoozeSheet.defaultOption(for: storedMinutes)
-        _selectedOption = State(initialValue: option)
-        let initialDate = Date().addingTimeInterval(TimeInterval(max(storedMinutes, 60)) * 60)
-        _customDate = State(initialValue: initialDate)
+        let defaults = UserDefaults.standard
+        let storedMinutes = defaults.object(forKey: "defaultSnoozeMinutes") as? Int ?? 60
+        let useResurfaceDefaults = defaults.bool(forKey: "useResurfaceTime")
+        if useResurfaceDefaults {
+            _selectedOption = State(initialValue: .custom)
+            let storedTime = defaults.double(forKey: "defaultResurfaceTime")
+            let defaultDate = NewSnoozeSheet.defaultResurfaceDate(from: storedTime)
+            _customDate = State(initialValue: defaultDate)
+        } else {
+            let option = NewSnoozeSheet.defaultOption(for: storedMinutes)
+            _selectedOption = State(initialValue: option)
+            let initialDate = Date().addingTimeInterval(TimeInterval(max(storedMinutes, 60)) * 60)
+            _customDate = State(initialValue: initialDate)
+        }
     }
 
     var body: some View {
@@ -45,8 +56,16 @@ struct NewSnoozeSheet: View {
             Form {
                 Section("Details") {
                     TextField("Title", text: $title)
-                    TextEditor(text: $body)
-                        .frame(minHeight: 100)
+                    ZStack(alignment: .topLeading) {
+                        if messageBody.isEmpty {
+                            Text("Body")
+                                .foregroundColor(Color(.placeholderText))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 10)
+                        }
+                        TextEditor(text: $messageBody)
+                            .frame(minHeight: 100)
+                    }
                 }
 
                 Section("Duration") {
@@ -78,10 +97,10 @@ struct NewSnoozeSheet: View {
                         if isSaving { ProgressView() }
                         Text("Snooze")
                     }
-                    .disabled(title.isEmpty || body.isEmpty || isSaving)
+                    .disabled(title.isEmpty || messageBody.isEmpty || isSaving)
                 }
             }
-            .onChange(of: defaultSnoozeMinutes) { newValue in
+            .onChangeCompat(of: defaultSnoozeMinutes) { newValue in
                 selectedOption = NewSnoozeSheet.defaultOption(for: newValue)
             }
         }
@@ -111,14 +130,14 @@ struct NewSnoozeSheet: View {
 
     @MainActor
     private func save() async {
-        guard !title.isEmpty, !body.isEmpty else { return }
+        guard !title.isEmpty, !messageBody.isEmpty else { return }
         isSaving = true
         errorMessage = nil
         let snoozeDate = resolveSnoozeDate()
         do {
             let item = try await SnoozeService.shared.createSnooze(
                 title: title,
-                body: body,
+                body: messageBody,
                 snoozeUntil: snoozeDate,
                 urgency: nil
             )
@@ -136,5 +155,20 @@ struct NewSnoozeSheet: View {
         if minutes <= 90 { return .oneHour }
         if minutes <= 12 * 60 { return .todayPM }
         return .custom
+    }
+
+    private static func defaultResurfaceDate(from stored: Double) -> Date {
+        let calendar = Calendar.current
+        let baseRef = stored == 0 ? SettingsView.defaultResurfaceTime : Date(timeIntervalSinceReferenceDate: stored)
+        let base = baseRef
+        var todayComponents = calendar.dateComponents([.year, .month, .day], from: Date())
+        let timeComponents = calendar.dateComponents([.hour, .minute], from: base)
+        todayComponents.hour = timeComponents.hour
+        todayComponents.minute = timeComponents.minute
+        var candidate = calendar.date(from: todayComponents) ?? Date().addingTimeInterval(3600)
+        if candidate < Date() {
+            candidate = calendar.date(byAdding: .day, value: 1, to: candidate) ?? candidate
+        }
+        return candidate
     }
 }

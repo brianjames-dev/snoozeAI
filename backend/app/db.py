@@ -88,9 +88,55 @@ def fetch_items(limit: int = 50) -> List[Dict]:
             {
                 "id": snap.id,
                 "title": data.get("title", ""),
+                "body": data.get("body", ""),
                 "summary": data.get("summary", ""),
                 "urgency": data.get("urgency", 0.0),
                 "snoozeUntil": data.get("snoozeUntil"),
             }
         )
     return items
+
+
+def update_snoozed(doc_id: str, payload) -> str:
+    updates = {}
+    data = payload.model_dump(exclude_unset=True)
+    if "title" in data and data["title"] is not None:
+        updates["title"] = data["title"]
+    if "body" in data and data["body"] is not None:
+        updates["body"] = data["body"]
+    if "summary" in data and data["summary"] is not None:
+        updates["summary"] = data["summary"]
+    if "urgency" in data and data["urgency"] is not None:
+        updates["urgency"] = data["urgency"]
+    if "snooze_until" in data and data["snooze_until"] is not None:
+        value = data["snooze_until"]
+        if isinstance(value, str):
+            value = datetime.fromisoformat(value)
+        updates["snoozeUntil"] = value
+
+    if not updates:
+        return doc_id
+
+    client = get_db()
+    if client is None:
+        record = _local_cache.get(doc_id)
+        if not record:
+            raise ValueError("Unknown snooze id")
+        record.update(updates)
+        return doc_id
+
+    ref = client.collection(_collection_name).document(doc_id)
+    updates["updatedAt"] = firestore.SERVER_TIMESTAMP
+    ref.set(updates, merge=True)
+    return doc_id
+
+
+def delete_snoozed(doc_id: str) -> str:
+    client = get_db()
+    if client is None:
+        if doc_id in _local_cache:
+            del _local_cache[doc_id]
+        return doc_id
+
+    client.collection(_collection_name).document(doc_id).delete()
+    return doc_id

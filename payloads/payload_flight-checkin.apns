@@ -1,0 +1,9 @@
+{
+  "aps": {
+    "alert": {
+      "title": "Flight Check-In",
+      "body": "JetBlue reminder: online check-in for BOS → SFO opens in 15 minutes. Have your ID ready."
+    },
+    "mutable-content": 1
+  }
+}

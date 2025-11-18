@@ -37,9 +37,22 @@ class SnoozedItemOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     id: str
     title: str
+    body: str
     summary: str
     urgency: Optional[float] = None
     snooze_until: datetime = Field(..., serialization_alias="snoozeUntil")
 
 class ItemsOut(BaseModel):
     items: List[SnoozedItemOut]
+
+class UpdateSnoozeIn(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    title: Optional[str] = None
+    body: Optional[str] = None
+    summary: Optional[str] = None
+    urgency: Optional[float] = None
+    snooze_until: Optional[datetime] = Field(
+        default=None,
+        validation_alias=AliasChoices("snoozeUntil", "snooze_until"),
+        serialization_alias="snoozeUntil",
+    )

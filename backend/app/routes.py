@@ -1,8 +1,8 @@
 import logging
 from fastapi import APIRouter, HTTPException, Query
-from .schemas import TextIn, SummaryOut, ClassifyOut, StoreIn, StoreOut, ItemsOut
+from .schemas import TextIn, SummaryOut, ClassifyOut, StoreIn, StoreOut, ItemsOut, UpdateSnoozeIn
 from .ai import summarize as ai_summarize, classify as ai_classify
-from .db import store_snoozed, fetch_items
+from .db import store_snoozed, fetch_items, update_snoozed, delete_snoozed
 
 router = APIRouter()
 logger = logging.getLogger("ai-notif-agent")
@@ -47,6 +47,7 @@ def items(limit: int = Query(50, ge=1, le=100)):
             {
                 "id": record.get("id"),
                 "title": record.get("title", ""),
+                "body": record.get("body", ""),
                 "summary": record.get("summary", ""),
                 "urgency": record.get("urgency", 0.0),
                 "snooze_until": record.get("snoozeUntil"),
@@ -54,3 +55,23 @@ def items(limit: int = Query(50, ge=1, le=100)):
         )
     logger.info("items.list count=%s", len(normalized))
     return {"items": normalized}
+
+
+@router.patch("/items/{item_id}", response_model=StoreOut)
+def update_item(item_id: str, payload: UpdateSnoozeIn):
+    try:
+        doc_id = update_snoozed(item_id, payload)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to update snooze") from exc
+    logger.info("items.update id=%s", doc_id)
+    return {"ok": True, "id": doc_id}
+
+
+@router.delete("/items/{item_id}", response_model=StoreOut)
+def delete_item(item_id: str):
+    try:
+        delete_snoozed(item_id)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to delete snooze") from exc
+    logger.info("items.delete id=%s", item_id)
+    return {"ok": True, "id": item_id}

@@ -19,10 +19,10 @@ struct AINotificationAgentApp: App {
                 SettingsView()
                     .tabItem { Label("Settings", systemImage: "gearshape") }
             }
-        }
-        .onChange(of: scenePhase) { phase in
-            guard phase == .background else { return }
-            BackgroundRefreshScheduler.shared.schedule()
+            .onChangeCompat(of: scenePhase) { phase in
+                guard phase == .background else { return }
+                BackgroundRefreshScheduler.shared.schedule()
+            }
         }
     }
 }

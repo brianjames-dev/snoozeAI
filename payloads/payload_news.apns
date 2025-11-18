@@ -1,0 +1,9 @@
+{
+  "aps": {
+    "alert": {
+      "title": "News Alert",
+      "body": "NYTimes: Fed hints at rate cuts later this year. Markets reacting; futures up 1.3%."
+    },
+    "mutable-content": 1
+  }
+}

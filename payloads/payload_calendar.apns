@@ -1,0 +1,9 @@
+{
+  "aps": {
+    "alert": {
+      "title": "Calendar Invite",
+      "body": "Weekly sync with Product starts in 20 minutes on Zoom. Agenda: launch blockers + KPI review."
+    },
+    "mutable-content": 1
+  }
+}

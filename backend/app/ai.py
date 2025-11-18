@@ -40,13 +40,12 @@ def _can_use_openai(config: AIConfig) -> bool:
 
 
 def summarize_offline(text: str, max_tokens: int = 60) -> str:
-    prefix = "Summary: "
-    snippet = " ".join(text.strip().split())
-    max_chars = max_tokens * 4
-    trimmed = snippet[:max_chars]
-    if len(snippet) > max_chars:
-        trimmed = trimmed.rstrip() + "…"
-    return prefix + trimmed
+    words = text.strip().split()
+    limit = max(8, min(len(words), max_tokens // 2))
+    snippet = " ".join(words[:limit])
+    if len(words) > limit:
+        snippet += "…"
+    return snippet
 
 
 def classify_offline(text: str, hints: Optional[List[str]] = None) -> dict:
@@ -75,11 +74,18 @@ async def summarize(text: str, max_tokens: int = 60, config: Optional[AIConfig] 
     messages = [
         {
             "role": "system",
-            "content": "You are a concise assistant that summarizes notification text in <= 1 short sentence.",
+            "content": (
+                "Condense notifications into ultra-brief fragments. Preserve who/what/when in <=15 words "
+                "using formats like 'PagerDuty — CPU spike, ack in 5m'. Drop filler, salutations, and anything "
+                "not actionable."
+            ),
         },
         {
             "role": "user",
-            "content": f"{text}\n\nReturn at most {bounded_tokens} tokens.",
+            "content": (
+                f"Summarize this notification with only critical facts. "
+                f"Text: {text}"
+            ),
         },
     ]
     payload = {

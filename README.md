@@ -38,13 +38,55 @@ Monorepo for **iOS (SwiftUI)** client + **FastAPI** backend. This README shows h
    GOOGLE_APPLICATION_CREDENTIALS=/ABS/PATH/service-account.json
    GCP_PROJECT_ID=your-gcp-project
 
-3. Start the API:
+3. Export environment variables (or run `set -a; source backend/.env; set +a`):
+   ```bash
+   source .venv/bin/activate
+   set -a && source backend/.env && set +a
    make backend
+   ```
 
 4. Quick smoke tests (in another terminal):
    curl -s http://127.0.0.1:8000/health
    curl -s -X POST http://127.0.0.1:8000/summarize -H "Content-Type: application/json" -d '{"text":"Long original body"}'
    curl -s -X POST http://127.0.0.1:8000/classify -H "Content-Type: application/json" -d '{"text":"Might be urgent"}'
+
+---
+
+## Quick Start (two terminals)
+
+### Terminal A — Backend & Firestore/OpenAI setup
+```bash
+cd /Users/brianjames/Dev/ai-notif-agent
+source .venv/bin/activate
+set -a && source backend/.env && set +a   # exports USE_OPENAI, OPENAI_API_KEY, Firestore creds
+make backend
+```
+
+### Terminal B — iOS app
+```bash
+cd /Users/brianjames/Dev/ai-notif-agent
+make ios        # opens Xcode
+```
+
+Then in Xcode (Simulator target selected), press **⌘R** to build/run.
+
+### Testing flows
+1. **Snoozed dashboard** — Create items via the in-app “+ New Snooze” sheet or seed script:
+   ```bash
+   python scripts/seed_snoozes.py --sample pagerduty
+   ```
+   Pull to refresh in the Snoozed tab to see the entries.
+2. **Summarizer sanity check** — From any terminal with env vars loaded:
+   ```bash
+   curl -s -X POST http://127.0.0.1:8000/summarize \
+     -H 'Content-Type: application/json' \
+     -d '{"text":"Incident #14322 triggered...", "max_tokens": 60}'
+   ```
+3. **Notification Service extension** — requires the iOS app to be built with the extension target (signed). Push sample payloads:
+   ```bash
+   make push PAYLOAD=payloads/payload_pagerduty.apns
+   ```
+   (If using a Personal Team, a physical device or paid Developer Program is required to sign the extension.)
 
 ---
 

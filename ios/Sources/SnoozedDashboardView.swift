@@ -11,6 +11,7 @@ struct SnoozedDashboardView: View {
     @State private var items: [SnoozedItem] = []
     @State private var loadState: LoadState = .idle
     @State private var isPresentingSheet = false
+    @State private var editingItem: SnoozedItem?
     @State private var bannerMessage: String?
     @State private var lastRefresh: Date?
     @Environment(\.scenePhase) private var scenePhase
@@ -51,6 +52,11 @@ struct SnoozedDashboardView: View {
                 Task { await refreshFromServer(showLoader: false) }
             }
         }
+        .sheet(item: $editingItem) { item in
+            EditSnoozeSheet(item: item) { updated in
+                replaceItem(updated)
+            }
+        }
         .onAppear {
             if items.isEmpty {
                 items = LocalSnoozedCache.shared.load()
@@ -60,7 +66,7 @@ struct SnoozedDashboardView: View {
                 Task { await refreshFromServer(showLoader: items.isEmpty) }
             }
         }
-        .onChange(of: scenePhase) { phase in
+        .onChangeCompat(of: scenePhase) { phase in
             guard phase == .active else { return }
             attemptPassiveRefresh()
         }
@@ -116,6 +122,20 @@ struct SnoozedDashboardView: View {
                         snoozeUntil: item.snoozeUntil
                     )
                     .modifier(HideSeparatorIfAvailable())
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button(role: .destructive) {
+                            Task { await deleteItem(item) }
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+
+                        Button {
+                            editingItem = item
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        .tint(.blue)
+                    }
                 }
                 .listStyle(.plain)
                 .refreshable {
@@ -127,6 +147,15 @@ struct SnoozedDashboardView: View {
 
     private func insertItem(_ item: SnoozedItem) {
         items.insert(item, at: 0)
+        persistCache()
+    }
+
+    private func replaceItem(_ updated: SnoozedItem) {
+        if let idx = items.firstIndex(where: { $0.id == updated.id }) {
+            items[idx] = updated
+        } else {
+            items.insert(updated, at: 0)
+        }
         persistCache()
     }
 
@@ -168,6 +197,18 @@ struct SnoozedDashboardView: View {
 
     private func persistCache() {
         try? LocalSnoozedCache.shared.save(items: items)
+    }
+
+    @MainActor
+    private func deleteItem(_ item: SnoozedItem) async {
+        do {
+            try await service.deleteSnooze(id: item.id)
+            items.removeAll { $0.id == item.id }
+            persistCache()
+        } catch {
+            bannerMessage = "Delete failed. Please try again."
+            print("Delete error:", error)
+        }
     }
 
     private func banner(text: String) -> some View {
