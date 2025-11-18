@@ -9,6 +9,8 @@ struct AINotificationAgentApp: App {
                     .tabItem { Label("Home", systemImage: "house") }
                 SnoozedDashboardView()
                     .tabItem { Label("Snoozed", systemImage: "clock") }
+                SettingsView()
+                    .tabItem { Label("Settings", systemImage: "gearshape") }
             }
         }
     }
