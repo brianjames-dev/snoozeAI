@@ -59,8 +59,32 @@ Monorepo for **iOS (SwiftUI)** client + **FastAPI** backend. This README shows h
 cd /Users/brianjames/Dev/ai-notif-agent
 source .venv/bin/activate
 set -a && source backend/.env && set +a   # exports USE_OPENAI, OPENAI_API_KEY, Firestore creds
-make backend
+# Run backend bound to all interfaces (emulator can reach http://10.0.2.2:8000)
+PYTHONPATH=. uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
+
+# Seed sample snoozes (optional)
+python android/scripts/seed_snoozes.py --all
+
+# Verify seeded data
+curl http://127.0.0.1:8000/items
 ```
+
+- Clear seeded snoozes (if you need a clean slate):
+  - In-memory backend: restart the backend and clear the app cache `adb shell pm clear com.snoozeai.ainotificationagent`.
+  - Firestore backend: delete the `snoozes` collection (console) or run:
+    ```bash
+    python - <<'PY'
+    from google.cloud import firestore
+    db = firestore.Client()
+    batch = db.batch()
+    for i, doc in enumerate(db.collection("snoozes").stream()):
+        batch.delete(doc.reference)
+        if (i+1) % 400 == 0:
+            batch.commit(); batch = db.batch()
+    batch.commit()
+    print("Deleted all snoozes")
+    PY
+    ```
 
 ### Terminal B — iOS app
 ```bash

@@ -140,6 +140,7 @@ fun SnoozeApp(repository: SnoozeRepository, settingsRepository: SettingsReposito
     )
     val items by vm.items.collectAsState()
     val settings by vm.settings.collectAsState(initial = null)
+    val error by vm.error.collectAsState()
 
     val context = LocalContext.current
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -219,7 +220,7 @@ fun SnoozeApp(repository: SnoozeRepository, settingsRepository: SettingsReposito
                 )
             }
             composable("snoozed") {
-                SnoozedScreen(snoozedItems = items)
+                SnoozedScreen(snoozedItems = items, error = error)
             }
             composable("settings") {
                 SettingsSection(
@@ -466,7 +467,7 @@ private fun StatGrid(stats: List<Pair<String, String>>) {
 }
 
 @Composable
-fun SnoozedScreen(snoozedItems: List<SnoozedItem>) {
+fun SnoozedScreen(snoozedItems: List<SnoozedItem>, error: String?) {
     if (snoozedItems.isEmpty()) {
         Column(
             modifier = Modifier
@@ -477,6 +478,7 @@ fun SnoozedScreen(snoozedItems: List<SnoozedItem>) {
         ) {
             Text("No snoozes yet.")
             Text("Grant notification access to start summarizing.")
+            error?.let { Text("Last error: $it", style = MaterialTheme.typography.bodySmall) }
         }
     } else {
         LazyColumn(
@@ -484,6 +486,11 @@ fun SnoozedScreen(snoozedItems: List<SnoozedItem>) {
             contentPadding = PaddingValues(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            if (error != null) {
+                item {
+                    Text("Last error: $error", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
+            }
             items(snoozedItems) { item ->
                 SnoozeCard(item)
             }
@@ -500,6 +507,8 @@ class SnoozeViewModel(
     val items: StateFlow<List<SnoozedItem>> = _items
     private val _settings = MutableStateFlow<Settings?>(null)
     val settings: StateFlow<Settings?> = _settings
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error
 
     init {
         viewModelScope.launch {
@@ -513,7 +522,9 @@ class SnoozeViewModel(
 
     fun refresh() {
         viewModelScope.launch {
+            _error.value = null
             runCatching { repository.syncLatest() }
+                .onFailure { err -> _error.value = err.message }
         }
     }
 

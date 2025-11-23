@@ -6,7 +6,9 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
-val baseUrl = (project.findProperty("SNOOZE_BASE_URL") as? String).orEmpty()
+// Default to emulator → host alias if not provided
+val baseUrl = (project.findProperty("SNOOZE_BASE_URL") as? String)?.takeIf { it.isNotBlank() }
+    ?: "http://10.0.2.2:8000"
 
 android {
     namespace = "com.snoozeai.ainotificationagent"
@@ -19,8 +21,7 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
-        val url = if (baseUrl.isNotBlank()) baseUrl else "http://10.0.2.2:8000"
-        buildConfigField("String", "BASE_URL", "\"$url\"")
+        buildConfigField("String", "BASE_URL", "\"$baseUrl\"")
 
         vectorDrawables.useSupportLibrary = true
     }
@@ -86,6 +87,7 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-moshi:2.11.0")
+    implementation("com.squareup.moshi:moshi-kotlin:1.15.1")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
     testImplementation("junit:junit:4.13.2")

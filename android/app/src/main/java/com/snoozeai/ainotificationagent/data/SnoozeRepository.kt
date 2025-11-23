@@ -22,7 +22,7 @@ import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 @TypeConverters(InstantConverter::class)
-@Database(entities = [SnoozeEntity::class], version = 1)
+@Database(entities = [SnoozeEntity::class], version = 2)
 abstract class SnoozeDatabase : RoomDatabase() {
     abstract fun snoozeDao(): SnoozeDao
 
@@ -47,7 +47,7 @@ data class SnoozedItem(
     val title: String,
     val body: String,
     val summary: String,
-    val urgency: String?,
+    val urgency: Double?,
     val snoozeUntil: Instant
 )
 
@@ -57,7 +57,7 @@ data class SnoozeEntity(
     val title: String,
     val body: String,
     val summary: String,
-    val urgency: String?,
+    val urgency: Double?,
     val snoozeUntil: Instant
 ) {
     fun toModel() = SnoozedItem(id, title, body, summary, urgency, snoozeUntil)
@@ -113,7 +113,7 @@ class SnoozeRepository(
             title = title.ifBlank { "Notification" },
             body = body,
             summary = summarize.summary,
-            urgency = classify.urgency,
+            urgency = classify.urgency.toDoubleOrNull(),
             snoozeUntil = snoozeUntil
         )
 
@@ -121,11 +121,11 @@ class SnoozeRepository(
             StoreRequest(
                 id = item.id,
                 title = item.title,
-                body = item.body,
-                summary = item.summary,
-                urgency = item.urgency,
-                snoozeUntil = DateTimeFormatter.ISO_INSTANT.format(item.snoozeUntil)
-            )
+            body = item.body,
+            summary = item.summary,
+            urgency = item.urgency?.toString(),
+            snoozeUntil = DateTimeFormatter.ISO_INSTANT.format(item.snoozeUntil)
+        )
         )
         dao.upsert(SnoozeEntity.fromModel(item))
         return item
@@ -145,7 +145,7 @@ private fun com.snoozeai.ainotificationagent.backend.SnoozedItemResponse.toModel
     return SnoozedItem(
         id = id,
         title = title,
-        body = summary,
+        body = body ?: summary,
         summary = summary,
         urgency = urgency,
         snoozeUntil = parsedInstant

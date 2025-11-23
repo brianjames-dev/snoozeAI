@@ -38,8 +38,9 @@ data class StoreResponse(
 data class SnoozedItemResponse(
     val id: String,
     val title: String,
+    val body: String? = null,
     val summary: String,
-    val urgency: String?,
+    val urgency: Double?,
     val snoozeUntil: String
 )
 

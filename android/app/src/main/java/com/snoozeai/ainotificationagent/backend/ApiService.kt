@@ -4,6 +4,8 @@ import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Query
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 
 interface ApiService {
     @GET("/health")
@@ -24,6 +26,9 @@ interface ApiService {
 
 object ApiClient {
     fun create(baseUrl: String): ApiService {
+        val moshi = Moshi.Builder()
+            .add(KotlinJsonAdapterFactory())
+            .build()
         val logger = okhttp3.logging.HttpLoggingInterceptor().apply {
             level = okhttp3.logging.HttpLoggingInterceptor.Level.BASIC
         }
@@ -36,7 +41,7 @@ object ApiClient {
             .baseUrl(baseUrl)
             .client(okHttp)
             .addConverterFactory(
-                retrofit2.converter.moshi.MoshiConverterFactory.create()
+                retrofit2.converter.moshi.MoshiConverterFactory.create(moshi)
             )
             .build()
 

@@ -24,6 +24,42 @@ This module brings the existing FastAPI backend to Android via a notification-li
 - Notification Listener access (system settings screen)
 - Battery optimization exemption (recommended to reduce Doze/OEM kills)
 
+## Backend binding & seeding
+
+- Run backend bound to all interfaces so the emulator can reach `http://10.0.2.2:8000`:
+  ```bash
+  cd /Users/brianjames/Dev/ai-notif-agent
+  source .venv/bin/activate
+  PYTHONPATH=. uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
+  ```
+- Seed sample snoozes (shows up after refresh in Snoozed tab):
+  ```bash
+  python android/scripts/seed_snoozes.py --all
+  ```
+- Check seeded data:
+  ```bash
+  curl http://127.0.0.1:8000/items
+  ```
+- Clear seeded snoozes (clean slate):
+  - In-memory backend: restart the backend and clear the app cache:
+    ```bash
+    adb shell pm clear com.snoozeai.ainotificationagent
+    ```
+  - Firestore backend: delete the `snoozes` collection (console) or run:
+    ```bash
+    python - <<'PY'
+    from google.cloud import firestore
+    db = firestore.Client()
+    batch = db.batch()
+    for i, doc in enumerate(db.collection("snoozes").stream()):
+        batch.delete(doc.reference)
+        if (i+1) % 400 == 0:
+            batch.commit(); batch = db.batch()
+    batch.commit()
+    print("Deleted all snoozes")
+    PY
+    ```
+
 ## Privacy Copy (Play)
 
 "SnoozeAI reads your notification title/body locally, sends it to your configured SnoozeAI backend to summarize/classify, and stores snoozes on-device with optional Firestore sync. No other data is collected. You can revoke notification access anytime in system settings."
