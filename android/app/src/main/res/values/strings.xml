@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">SnoozeAI</string>
+    <string name="notification_channel_name">SnoozeAI Summaries</string>
+    <string name="notification_channel_description">Summaries and snoozed notifications powered by the backend.</string>
+    <string name="action_snooze_15">Snooze 15m</string>
+    <string name="action_snooze_60">Snooze 1h</string>
+    <string name="permissions_title">Permissions</string>
+    <string name="privacy_copy">We process notification title/body locally, send it to your configured backend to summarize/classify, and store snoozes locally + optionally Firestore. Disable notification access anytime in system settings.</string>
+</resources>
