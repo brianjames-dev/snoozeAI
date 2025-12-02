@@ -1,142 +1,66 @@
-# SnoozeAI (AI Notification Agent)
+# SnoozeAI (Android + FastAPI backend)
 
-Monorepo for **iOS (SwiftUI)** client + **FastAPI** backend. This README shows how to run both and how to test notifications in the iOS Simulator.
-
----
-
-## Prerequisites
-
-- Python 3.11+
-- Xcode 15+ with iOS Simulator
-- A Firebase Firestore service-account JSON (local path; do **not** commit it)
+Lightweight repo for the Android notification-listener client and the FastAPI backend it calls.
 
 ---
 
-## Repo Layout
+## Repo layout
 
-/backend  
- app/ (FastAPI: main.py, routes/)  
- requirements.txt  
- .env.example  
-/ios (SwiftUI app +, later, Notification Service Extension)
+- `backend/` — FastAPI app exposing `/summarize`, `/classify`, `/store`, `/items`, `/health`.
+- `android/` — Android Studio project (notification listener, Compose UI).
 
 ---
 
-## Backend — Setup & Run (FastAPI)
+## Backend — setup & run
 
-1. Create & activate a virtual environment, install deps:
-   make setup
-
-2. Configure environment (copy and edit):
-   cp backend/.env.example backend/.env
-
-   in backend/.env, set:
-
-   USE_OPENAI=false            # flip true with a valid key
-   OPENAI_API_KEY=sk-...
-   OPENAI_MODEL=gpt-4o-mini
-   GOOGLE_APPLICATION_CREDENTIALS=/ABS/PATH/service-account.json
-   GCP_PROJECT_ID=your-gcp-project
-
-3. Export environment variables (or run `set -a; source backend/.env; set +a`):
-   ```bash
-   source .venv/bin/activate
-   set -a && source backend/.env && set +a
-   make backend
-   ```
-
-4. Quick smoke tests (in another terminal):
-   curl -s http://127.0.0.1:8000/health
-   curl -s -X POST http://127.0.0.1:8000/summarize -H "Content-Type: application/json" -d '{"text":"Long original body"}'
-   curl -s -X POST http://127.0.0.1:8000/classify -H "Content-Type: application/json" -d '{"text":"Might be urgent"}'
-
----
-
-## Quick Start (two terminals)
-
-### Terminal A — Backend & Firestore/OpenAI setup
+1) Create a virtual environment and install deps:
 ```bash
-cd /Users/brianjames/Dev/ai-notif-agent
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r backend/requirements.txt
+```
+
+2) Configure environment (copy and edit):
+```bash
+cp backend/.env.example backend/.env
+# set USE_OPENAI, OPENAI_API_KEY, Firestore creds if needed
+```
+
+3) Run the API (bind to all interfaces so the emulator can reach `http://10.0.2.2:8000`):
+```bash
 source .venv/bin/activate
-set -a && source backend/.env && set +a   # exports USE_OPENAI, OPENAI_API_KEY, Firestore creds
-# Run backend bound to all interfaces (emulator can reach http://10.0.2.2:8000)
+set -a && source backend/.env && set +a
 PYTHONPATH=. uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
-
-# Seed sample snoozes (optional)
-python android/scripts/seed_snoozes.py --all
-
-# Verify seeded data
-curl http://127.0.0.1:8000/items
 ```
 
-- Clear seeded snoozes (if you need a clean slate):
-  - In-memory backend: restart the backend and clear the app cache `adb shell pm clear com.snoozeai.ainotificationagent`.
-  - Firestore backend: delete the `snoozes` collection (console) or run:
-    ```bash
-    python - <<'PY'
-    from google.cloud import firestore
-    db = firestore.Client()
-    batch = db.batch()
-    for i, doc in enumerate(db.collection("snoozes").stream()):
-        batch.delete(doc.reference)
-        if (i+1) % 400 == 0:
-            batch.commit(); batch = db.batch()
-    batch.commit()
-    print("Deleted all snoozes")
-    PY
-    ```
-
-### Terminal B — iOS app
+4) Optional: seed sample snoozes for testing:
 ```bash
-cd /Users/brianjames/Dev/ai-notif-agent
-make ios        # opens Xcode
+python android/scripts/seed_snoozes.py --all   # defaults to http://127.0.0.1:8000
+curl http://127.0.0.1:8000/items              # verify
 ```
 
-Then in Xcode (Simulator target selected), press **⌘R** to build/run.
+---
 
-### Testing flows
-1. **Snoozed dashboard** — Create items via the in-app “+ New Snooze” sheet or seed script:
-   ```bash
-   python scripts/seed_snoozes.py --sample pagerduty
-   ```
-   Pull to refresh in the Snoozed tab to see the entries.
-2. **Summarizer sanity check** — From any terminal with env vars loaded:
-   ```bash
-   curl -s -X POST http://127.0.0.1:8000/summarize \
-     -H 'Content-Type: application/json' \
-     -d '{"text":"Incident #14322 triggered...", "max_tokens": 60}'
-   ```
-3. **Notification Service extension** — requires the iOS app to be built with the extension target (signed). Push sample payloads:
-   ```bash
-   make push PAYLOAD=payloads/payload_pagerduty.apns
-   ```
-   (If using a Personal Team, a physical device or paid Developer Program is required to sign the extension.)
+## Android app
+
+1) Open `android/` in Android Studio (Hedgehog/Flamingo+).
+2) Set the backend URL in `android/local.properties` (default is emulator host alias):
+```
+SNOOZE_BASE_URL=http://10.0.2.2:8000
+```
+3) Run on a device/emulator. Grant:
+- Notification permission (Android 13+)
+- Notification Listener access (system settings prompt will appear)
+- Battery optimization exemption (recommended)
+
+Flow: the listener captures notifications from other apps, calls the backend (`/summarize`, `/classify`, `/store`), caches via Room, and re-posts a summarized notification with snooze actions.
 
 ---
 
-## Dev Shortcuts (Makefile)
+## API quick reference
 
-- `make backend` — run FastAPI (auto-creates venv if missing).
-- `make test` — run backend unit tests (`pytest`).
-- `make openai-on` / `make openai-off` — toggle `USE_OPENAI` in `backend/.env`.
-- `make push` — push `payload.apns` to the currently booted iOS simulator via Notification Service Extension.
-- `make bundle-id` — echoes the app bundle identifier (`dev.brianjames.AINotificationAgent`).
-
----
-
-## Backend API Contracts
-
-- `POST /summarize` `{text,max_tokens}` → `{summary}`. Honors `USE_OPENAI`; fallback mock is prefixed with `"Summary:"`.
-- `POST /classify` `{text,hints?}` → `{urgency,label}`. `hints` is an array of keywords (from Settings) that nudge urgency.
-- `POST /store` `{id,title,body,summary,urgency?,snoozeUntil}` → `{ok,id}`. Persists into Firestore when configured, otherwise a dev-only in-memory cache.
-- `GET /items?limit=50` → `{items:[{id,title,summary,urgency,snoozeUntil}]}` ordered by `snoozeUntil` desc.
-
----
-
-## iOS App Flow
-
-- **Home tab** — Request notification permission + simple local notification test.
-- **Snoozed tab** — Loads cached snoozes instantly, refreshes from backend, supports pull-to-refresh, manual refresh button, optimistic inserts, and error banners.
-- **New Snooze Sheet** — Title + body + preset/custom duration. Calls backend summarize/classify/store, schedules a local notification, updates cache.
-- **Settings tab** — Quiet hours, default snooze duration, prioritized sources (hints sent to classifier). Values persist via `@AppStorage`.
-- **Background Refresh Skeleton** — Registers a `BGAppRefreshTask` identifier and re-schedules when app backgrounds (placeholder for future fetch logic).
+- `POST /summarize` `{text,max_tokens}` → `{summary}`
+- `POST /classify` `{text,hints?}` → `{urgency,label}`
+- `POST /store` `{id,title,body,summary,urgency?,snoozeUntil}` → `{ok,id}`
+- `GET /items?limit=50` → `{items:[...]}` (ordered by `snoozeUntil` desc)
+- `GET /health` → status map

@@ -1,9 +1,0 @@
-{
-  "aps": {
-    "alert": {
-      "title": "Rent Payment",
-      "body": "Your rent for 25 Larkin St is due tomorrow. Submit payment in the Resident Portal to avoid late fees."
-    },
-    "mutable-content": 1
-  }
-}

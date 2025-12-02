@@ -1,9 +1,0 @@
-{
-  "aps": {
-    "alert": {
-      "title": "School Pickup",
-      "body": "Reminder from Lincoln Elementary: Ava's parent-teacher conference was moved to 3:30 PM today."
-    },
-    "mutable-content": 1
-  }
-}

@@ -1,9 +1,0 @@
-{
-  "aps": {
-    "alert": {
-      "title": "PagerDuty",
-      "body": "Incident #14322 (api-prod-1 CPU) triggered. Error rate up 320% in last 5 min. Ack now."
-    },
-    "mutable-content": 1
-  }
-}

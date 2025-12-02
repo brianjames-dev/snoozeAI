@@ -1,9 +1,0 @@
-// Very permissive for dev. Tighten before prod.
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /snoozed_notifications/{doc} {
-      allow read, write: if true;
-    }
-  }
-}

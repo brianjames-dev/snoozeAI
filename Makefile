@@ -1,9 +1,7 @@
 VENV ?= .venv
-BUNDLE_ID ?= dev.brianjames.AINotificationAgent
 ENV_FILE ?= backend/.env
-PAYLOAD ?= $(PWD)/payload.apns
 
-.PHONY: setup backend ios dev push bundle-id openai-on openai-off test _toggle-openai
+.PHONY: setup backend openai-on openai-off _toggle-openai
 
 setup:
 	python3 -m venv $(VENV)
@@ -12,24 +10,6 @@ setup:
 backend:
 	@test -d $(VENV) || $(MAKE) setup
 	. $(VENV)/bin/activate && uvicorn backend.app.main:app --reload --port 8000
-
-ios:
-	open ios/AINotificationAgent/AINotificationAgent.xcodeproj
-
-dev:
-	@echo "Run in two terminals:"
-	@echo "1) make backend"
-	@echo "2) make ios (then ⌘R in Xcode)"
-
-push:
-	@device=$$(xcrun simctl list devices booted | grep -Eo "[0-9A-F-]{8}-([0-9A-F-]{4}-){3}[0-9A-F-]{12}" | head -n 1); \
-	if [ -z "$$device" ]; then echo "No booted simulator found."; exit 1; fi; \
-	if [ ! -f "$(PAYLOAD)" ]; then echo "Payload $(PAYLOAD) not found."; exit 1; fi; \
-	echo "Pushing $(PAYLOAD) to $$device ($(BUNDLE_ID))"; \
-	xcrun simctl push $$device $(BUNDLE_ID) "$(PAYLOAD)"
-
-bundle-id:
-	@echo $(BUNDLE_ID)
 
 openai-on:
 	@STATE=true ENV_FILE=$(ENV_FILE) $(MAKE) _toggle-openai
@@ -59,7 +39,3 @@ _toggle-openai:
 	target.write_text(new_text)
 	print("USE_OPENAI set to", os.environ["STATE"])
 	PY
-
-test:
-	@test -d $(VENV) || $(MAKE) setup
-	. $(VENV)/bin/activate && pytest

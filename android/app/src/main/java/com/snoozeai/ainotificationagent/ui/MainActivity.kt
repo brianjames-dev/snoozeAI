@@ -1,13 +1,10 @@
 package com.snoozeai.ainotificationagent.ui
 
 import android.Manifest
-import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
-import android.os.PowerManager
-import android.provider.Settings as SystemSettings
 import android.widget.Toast
+import android.provider.Settings as SystemSettings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -19,14 +16,15 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Home
@@ -34,6 +32,7 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -53,9 +52,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -63,12 +63,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewModelScope
-import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -80,8 +76,6 @@ import com.snoozeai.ainotificationagent.data.SettingsRepository
 import com.snoozeai.ainotificationagent.data.SnoozeDatabase
 import com.snoozeai.ainotificationagent.data.SnoozeRepository
 import com.snoozeai.ainotificationagent.data.SnoozedItem
-import com.snoozeai.ainotificationagent.notifications.NotificationPublisher
-import com.snoozeai.ainotificationagent.notifications.SnoozeScheduler
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -92,21 +86,7 @@ import java.time.format.DateTimeFormatter
 import java.time.Instant
 import java.util.Locale
 
-@Composable
-private fun rememberBatteryStatus(): Boolean {
-    val context = LocalContext.current
-    val pkg = context.packageName
-    var batteryOk by remember { mutableStateOf(false) }
-    LaunchedEffect(pkg, context) {
-        batteryOk = runCatching {
-            context.getSystemService(PowerManager::class.java)
-                ?.isIgnoringBatteryOptimizations(pkg) == true
-        }.getOrDefault(false)
-    }
-    return batteryOk
-}
-
-data class NavItem(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
+data class NavItem(val route: String, val label: String, val icon: ImageVector)
 
 class MainActivity : ComponentActivity() {
 
@@ -203,18 +183,6 @@ fun SnoozeApp(repository: SnoozeRepository, settingsRepository: SettingsReposito
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         )
                     },
-                    onRequestBattery = {
-                        val power = context.getSystemService(PowerManager::class.java)
-                        val pkg = context.packageName
-                        if (power?.isIgnoringBatteryOptimizations(pkg) != true) {
-                            val intent = Intent(SystemSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                data = Uri.parse("package:$pkg")
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                            context.startActivity(intent)
-                        }
-                    },
-                    onSendSample = { vm.sendSample(context) },
                     items = items,
                     settings = settings
                 )
@@ -252,26 +220,21 @@ fun SnoozeCard(item: SnoozedItem) {
 
 @Composable
 fun PermissionSection(
-    onRequestNotifications: () -> Unit,
-    onOpenListenerSettings: () -> Unit,
-    onRequestBattery: () -> Unit,
-    batteryGranted: Boolean
+    pending: List<Pair<String, () -> Unit>>
 ) {
     val context = LocalContext.current
-    val pkg = context.packageName
-    val notificationEnabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
-    val listenerEnabled = NotificationManagerCompat.getEnabledListenerPackages(context).contains(pkg)
 
     Card {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Permissions", style = MaterialTheme.typography.titleMedium)
-            PermissionRow("Notifications", notificationEnabled, onRequestNotifications)
-            PermissionRow("Notification Listener", listenerEnabled, onOpenListenerSettings)
-            PermissionRow("Battery Optimization", batteryGranted, onRequestBattery)
-            Text(
-                text = context.getString(com.snoozeai.ainotificationagent.R.string.privacy_copy),
-                style = MaterialTheme.typography.bodySmall
-            )
+            if (pending.isEmpty()) {
+                Text("All required permissions are granted.", style = MaterialTheme.typography.bodySmall)
+            } else {
+                pending.forEach { (label, onClick) ->
+                    PermissionRow(label, false, onClick)
+                }
+            }
+            Text(text = context.getString(com.snoozeai.ainotificationagent.R.string.privacy_copy), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -379,18 +342,25 @@ fun SettingsSection(
 fun HomeScreen(
     onRequestNotifications: () -> Unit,
     onOpenListenerSettings: () -> Unit,
-    onRequestBattery: () -> Unit,
-    onSendSample: () -> Unit,
     items: List<SnoozedItem>,
     settings: Settings?
 ) {
+    val context = LocalContext.current
+    val pkg = context.packageName
+    val notificationEnabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
+    val listenerEnabled = NotificationManagerCompat.getEnabledListenerPackages(context).contains(pkg)
+    val pendingPermissions = listOfNotNull(
+        if (!notificationEnabled) "Notifications" to onRequestNotifications else null,
+        if (!listenerEnabled) "Notification Listener" to onOpenListenerSettings else null
+    )
+
     val formatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
     val quietStart = settings?.quietHours?.start?.format(formatter) ?: "9:00 AM"
     val quietEnd = settings?.quietHours?.end?.format(formatter) ?: "5:00 PM"
-    val quietLabel = if (settings?.quietHours?.enabled == true) {
-        "$quietStart – $quietEnd (quiet)"
+    val modeValue = if (settings?.quietHours?.enabled == true) {
+        "$quietStart – $quietEnd"
     } else {
-        "$quietStart – $quietEnd (always on)"
+        "Always on"
     }
     val total = items.size
     val upcoming = items.count { it.snoozeUntil.isAfter(Instant.now()) }
@@ -399,8 +369,8 @@ fun HomeScreen(
         ?.snoozeUntil
         ?.atZone(ZoneId.systemDefault())
         ?.format(formatter)
-        ?: "—"
-    val batteryGranted = rememberBatteryStatus()
+        ?: "0"
+    val urgencyBuckets = remember(items) { bucketUrgency(items) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -413,29 +383,77 @@ fun HomeScreen(
                     "Total snoozed" to total.toString(),
                     "Upcoming" to upcoming.toString(),
                     "Next resurfacing" to nextAt,
-                    "Window" to quietLabel
+                    "Mode" to modeValue
                 )
             )
         }
-        item {
-            PermissionSection(
-                onRequestNotifications = onRequestNotifications,
-                onOpenListenerSettings = onOpenListenerSettings,
-                onRequestBattery = onRequestBattery,
-                batteryGranted = batteryGranted
-            )
+        if (pendingPermissions.isNotEmpty()) {
+            item {
+                PermissionSection(pending = pendingPermissions)
+            }
         }
         item {
-            ElevatedCard {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text("Try it", style = MaterialTheme.typography.titleMedium)
-                    Text("Send a sample notification to verify summaries are working.")
-                    Button(onClick = onSendSample) {
-                        Text("Send sample notification")
-                    }
+            UrgencySummary(urgencyBuckets)
+        }
+    }
+}
+
+private data class UrgencyBuckets(
+    val high: Int,
+    val medium: Int,
+    val low: Int,
+    val unspecified: Int,
+    val total: Int
+)
+
+private fun bucketUrgency(items: List<SnoozedItem>): UrgencyBuckets {
+    var high = 0
+    var medium = 0
+    var low = 0
+    var unspecified = 0
+    items.forEach { item ->
+        val u = item.urgency
+        if (u == null) {
+            unspecified++
+        } else if (u >= 0.7) {
+            high++
+        } else if (u >= 0.4) {
+            medium++
+        } else if (u >= 0.0) {
+            low++
+        } else {
+            unspecified++
+        }
+    }
+    return UrgencyBuckets(high, medium, low, unspecified, items.size)
+}
+
+@Composable
+private fun UrgencySummary(buckets: UrgencyBuckets) {
+    val entries = buildList {
+        add("Low" to buckets.low)
+        add("Medium" to buckets.medium)
+        add("High" to buckets.high)
+        if (buckets.unspecified > 0) add("Unspecified" to buckets.unspecified)
+    }
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.inverseOnSurface),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Urgency", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                entries.forEach { (label, value) ->
+                    UrgencyPill(
+                        label = label,
+                        value = value,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }
@@ -445,23 +463,51 @@ fun HomeScreen(
 @Composable
 private fun StatGrid(stats: List<Pair<String, String>>) {
     LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
+        columns = GridCells.Adaptive(minSize = 150.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .height(200.dp)
+            .heightIn(max = 240.dp)
     ) {
-        items(stats) { (label, value) ->
-            ElevatedCard {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text(label, style = MaterialTheme.typography.bodyMedium)
-                }
-            }
+        itemsIndexed(stats) { index, (label, value) ->
+            val tone = if (index % 2 == 0) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
+            StatCard(label = label, value = value, containerColor = tone)
+        }
+    }
+}
+
+@Composable
+private fun StatCard(label: String, value: String, containerColor: Color) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        modifier = Modifier.clip(RoundedCornerShape(16.dp))
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(label.uppercase(Locale.getDefault()), style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun UrgencyPill(label: String, value: Int, modifier: Modifier = Modifier) {
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        modifier = modifier.clip(RoundedCornerShape(12.dp))
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 10.dp, horizontal = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalAlignment = Alignment.Start
+        ) {
+            Text(value.toString(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium, maxLines = 1)
+            Text(label, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -540,22 +586,5 @@ class SnoozeViewModel(
 
     fun updateHints(hints: List<String>) {
         viewModelScope.launch { settingsRepository.setHints(hints) }
-    }
-
-    fun sendSample(context: Context) {
-        viewModelScope.launch {
-            runCatching {
-                val prefs = _settings.value
-                val item = repository.ingestNotification(
-                    title = "Sample notification",
-                    body = "This is a SnoozeAI sample to verify summaries and snoozes.",
-                    defaultSnoozeMinutes = prefs?.defaultSnoozeMinutes ?: 60,
-                    hints = prefs?.hints
-                )
-                val publisher = NotificationPublisher(context)
-                publisher.postSummary(item)
-                SnoozeScheduler(context, publisher).schedule(item, prefs?.quietHours)
-            }
-        }
     }
 }
